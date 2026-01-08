@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+bot.db
+.env
+downloads/
+*.mp4
+cookies.txt
