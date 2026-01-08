@@ -6,6 +6,8 @@ load_dotenv()
 
 # Telegram Bot Token from Environment Variable
 BOT_TOKEN = os.getenv('TELEGRAM_TOKEN')
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
+PORT = int(os.getenv('PORT', '10000'))
 
 # Directory for temporary downloads
 DOWNLOAD_DIR = "/tmp/motivagion_downloads"

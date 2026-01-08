@@ -1,8 +1,8 @@
 import logging
 import os
 import random
-import asyncio
-from aiohttp import web
+# import asyncio  <-- Removed as run_polling/run_webhook handles it
+# from aiohttp import web <-- Removed
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
@@ -16,19 +16,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# --- Health Check Server ---
 
-async def health_check(request):
-    return web.Response(text="Bot is running!")
-
-async def start_health_server():
-    app = web.Application()
-    app.router.add_get('/', health_check)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 10000)
-    await site.start()
-    logger.info("Health check server started on port 10000")
 
 # --- Bot Handlers ---
 
@@ -108,13 +96,10 @@ async def motivate(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- Main Entry ---
 
-async def main():
+def main():
     if not config.BOT_TOKEN:
         logger.error("TELEGRAM_TOKEN is not set.")
         return
-
-    # Start health check server
-    await start_health_server()
 
     # Build bot
     application = ApplicationBuilder().token(config.BOT_TOKEN).build()
@@ -123,17 +108,17 @@ async def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("motivate", motivate))
 
-    logger.info("Starting bot polling...")
-    async with application:
-        await application.initialize()
-        await application.start()
-        await application.updater.start_polling()
-        # Keep running until interrupted
-        while True:
-            await asyncio.sleep(1)
+    if config.WEBHOOK_URL:
+        logger.info(f"Starting webhook mode on port {config.PORT}...")
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=config.PORT,
+            url_path=config.BOT_TOKEN,
+            webhook_url=f"{config.WEBHOOK_URL}/{config.BOT_TOKEN}"
+        )
+    else:
+        logger.info("Starting polling mode...")
+        application.run_polling()
 
 if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        pass
+    main()

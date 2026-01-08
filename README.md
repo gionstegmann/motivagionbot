@@ -6,7 +6,7 @@ Designed to be lightweight and easily deployable on free tier hosting services l
 ## Features
 - **Stateless**: No database required.
 - **Direct Links**: Uses a curated list of specific Instagram Reels (no flaky scraping).
-- **Health Check**: Native `aiohttp` server to satisfy Render's port requirements.
+- **Health Check**: Native webhook support satisfies Render's port and activity requirements.
 - **Privacy Focused**: No Instagram login required for direct link downloads.
 
 ## 🛠 Configuration
@@ -35,6 +35,7 @@ Open `sources.json` and add the **direct links** to the Instagram Reels you want
     ```bash
     python main.py
     ```
+    *The bot will start in Polling mode automatically if `WEBHOOK_URL` is not set.*
 
 ### 🍪 Cookies (Optional, but recommended)
 
@@ -58,8 +59,9 @@ This bot is pre-configured for Render.com.
     *   **Start Command**: `python main.py`
 5.  **Environment Variables**:
     *   `TELEGRAM_TOKEN`: (Required) Your Telegram Bot Token from @BotFather.
+    *   `WEBHOOK_URL`: (Required for Webhooks/Anti-Sleep) The full URL of your Render service (e.g., `https://your-bot.onrender.com`).
 
-The bot will automatically start a health-check server on port `10000`.
+The bot will automatically switch to **Webhook mode** when `WEBHOOK_URL` is present. This ensures the bot wakes up when a message is received, preventing it from sleeping on Render's free tier.
 
 ## 🤖 Usage
 - `/start` - Check if bot is alive.
