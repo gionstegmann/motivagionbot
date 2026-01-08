@@ -20,11 +20,6 @@ def get_sources():
                 return json.load(f)
         except Exception:
             pass
-    
-    # 2. Fallback to Env Var
-    env_sources = os.getenv("INSTA_SOURCES", "")
-    if env_sources:
-        return [s.strip() for s in env_sources.split(",") if s.strip()]
-    
+
     return []
 

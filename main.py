@@ -48,41 +48,63 @@ async def motivate(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No sources found in sources.json or environment variables.")
         return
 
-    # 2. Pick Source
-    source_url = random.choice(sources)
-    
-    status_msg = await update.message.reply_text(
-        f"Fetching motivation... 🏋️\nSource: {source_url} \n\nThis might take a moment.",
-        disable_web_page_preview=True
-    )
-    
-    # 3. Fetch and Send
+    # 2. Fetch and Send Loop
     video_path = None
-    try:
-        # Direct download from the source URL
-        video_path = downloader.download_video(source_url)
-        
-        caption = f"<a href=\"{source_url}\">Source</a>"
-        await update.message.reply_video(
-            video=open(video_path, 'rb'), 
-            caption=caption,
-            parse_mode='HTML'
-        )
-    except Exception as e:
-        logger.error(f"Error in motivate: {e}")
-        await update.message.reply_text("Failed to fetch or send video. Check logs.")
-    finally:
-        # Cleanup
-        if status_msg:
-            try:
-                await status_msg.delete()
-            except:
-                pass
-        if video_path and os.path.exists(video_path):
-            try:
-                os.remove(video_path)
-            except:
-                pass
+    max_retries = 3
+    
+    for attempt in range(max_retries):
+        try:
+            # Pick a random source
+            source_url = random.choice(sources)
+            
+            # Update status message on first attempt, or edit it on retries?
+            # Simpler to just let them know we are trying.
+            if attempt == 0:
+                 status_msg = await update.message.reply_text(
+                    f"Fetching motivation... 🏋️\nSource: {source_url} \n\nThis might take a moment.",
+                    disable_web_page_preview=True
+                )
+            
+            # Direct download
+            video_path = downloader.download_video(source_url)
+            
+            # If successful, send video
+            caption = f"<a href=\"{source_url}\">Source</a>"
+            await update.message.reply_video(
+                video=open(video_path, 'rb'), 
+                caption=caption,
+                parse_mode='HTML'
+            )
+            
+            # Break loop on success
+            break
+
+        except Exception as e:
+            logger.error(f"Attempt {attempt + 1}/{max_retries} failed for {source_url}: {e}")
+            video_path = None # Reset
+            continue
+    
+    # After loop, check if we succeeded
+    if not video_path:
+        fail_msg = await update.message.reply_text("Could not fetch a video after 3 attempts. 😔")
+        # Auto-delete failure message after 5 seconds
+        await asyncio.sleep(5)
+        try:
+            await fail_msg.delete()
+        except:
+            pass
+
+    # Cleanup
+    if status_msg:
+        try:
+            await status_msg.delete()
+        except:
+            pass
+    if video_path and os.path.exists(video_path):
+        try:
+            os.remove(video_path)
+        except:
+            pass
 
 # --- Main Entry ---
 
