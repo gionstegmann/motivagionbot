@@ -2,8 +2,9 @@ import logging
 import os
 import random
 import re
-import asyncio  # For the 5-second delete on failure
-from telegram import Update
+import asyncio
+import datetime
+from telegram import BotCommand, Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 import config
@@ -93,8 +94,24 @@ async def motivate(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
 
+async def is_admin(update: Update) -> bool:
+    """Check if the user is the configured admin."""
+    if not config.ADMIN_ID:
+        logger.warning("TELEGRAM_ADMIN_ID not set — blocking all users from admin commands.")
+        return False
+    user_id = str(update.effective_user.id)
+    return user_id == config.ADMIN_ID
+
+
 async def addvideo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Add a new Instagram Reel URL to sources.json."""
+    """Add a new Instagram Reel URL to sources.json (admin only)."""
+    # Admin check
+    if not await is_admin(update):
+        await update.message.reply_text(
+            "⛔ Sorry, only the bot admin can add videos."
+        )
+        return
+
     # Check we have a URL
     if not context.args:
         await update.message.reply_text(
@@ -145,6 +162,54 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def set_commands(application):
+    """Register bot commands with Telegram's command menu."""
+    commands = [
+        BotCommand("start", "Welcome message and usage info"),
+        BotCommand("motivate", "Get a random motivational video"),
+        BotCommand("addvideo", "Add an Instagram Reel URL to the collection"),
+        BotCommand("stats", "Show cache statistics"),
+    ]
+    await application.bot.set_my_commands(commands)
+    logger.info("Bot commands registered with Telegram menu")
+
+
+# ── Daily Scheduled Motivation ─────────────────────────────────────
+
+async def scheduled_motivate(context: ContextTypes.DEFAULT_TYPE):
+    """Send a random motivational video to the configured target chat at 6am daily."""
+    chat_id = context.job.data
+    if not chat_id:
+        logger.warning("scheduled_motivate: no target chat ID configured")
+        return
+
+    sources = config.get_sources()
+    if not sources:
+        logger.warning("scheduled_motivate: no sources configured")
+        return
+
+    for attempt in range(3):
+        try:
+            source_url = random.choice(sources)
+            video_path = downloader.download_video(source_url)
+            caption = f"☀️ Good morning!\n<a href=\"{source_url}\">Source</a>"
+            await context.bot.send_video(
+                chat_id=chat_id,
+                video=open(video_path, 'rb'),
+                caption=caption,
+                parse_mode='HTML',
+                read_timeout=60,
+                write_timeout=60,
+            )
+            logger.info(f"scheduled_motivate: sent video to {chat_id}")
+            return
+        except Exception as e:
+            logger.error(f"scheduled_motivate attempt {attempt + 1}/3 failed: {e}")
+            continue
+
+    logger.error("scheduled_motivate: all 3 attempts failed")
+
+
 # --- Main Entry ---
 
 def main():
@@ -153,13 +218,24 @@ def main():
         return
 
     # Build bot
-    application = ApplicationBuilder().token(config.BOT_TOKEN).build()
+    application = ApplicationBuilder().token(config.BOT_TOKEN).post_init(set_commands).build()
 
     # Handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("motivate", motivate))
     application.add_handler(CommandHandler("addvideo", addvideo))
     application.add_handler(CommandHandler("stats", stats))
+
+    # Daily scheduled motivation at 6am
+    if config.TARGET_CHAT_ID:
+        application.job_queue.run_daily(
+            scheduled_motivate,
+            time=datetime.time(hour=6, minute=0),
+            days=tuple(range(7)),  # every day
+            data=config.TARGET_CHAT_ID,
+            name="daily_motivation",
+        )
+        logger.info(f"Scheduled daily motivation at 06:00 for chat {config.TARGET_CHAT_ID}")
 
     if config.WEBHOOK_URL:
         logger.info(f"Starting webhook mode on port {config.PORT}...")

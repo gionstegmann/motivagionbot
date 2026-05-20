@@ -9,6 +9,14 @@ BOT_TOKEN = os.getenv('TELEGRAM_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 PORT = int(os.getenv('PORT', '10000'))
 
+# Admin Telegram user ID (only this user can add videos)
+ADMIN_ID = os.getenv('TELEGRAM_ADMIN_ID')
+
+# Daily motivation target (group chat ID for the 6am scheduled post)
+TARGET_CHAT_ID = os.getenv('TARGET_CHAT_ID')
+if TARGET_CHAT_ID is not None:
+    TARGET_CHAT_ID = int(TARGET_CHAT_ID)
+
 # Directory for cached video downloads (persistent, not /tmp)
 DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), 'videos')
 
